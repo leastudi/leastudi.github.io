@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Flappy Dackel Mobile & Desktop</title>
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            /* Verhindert das "Bounce"-Ziehen auf iPhones */
+            position: fixed;
+            width: 100%;
+        }
+
+        canvas {
+            background-color: #70c5ce; /* Himmelblau */
+            border: 4px solid #fff;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            max-width: 95%;
+            max-height: 80vh;
+            image-rendering: pixelated;
+            /* Wichtig für iPhone: Verhindert Zoom-Gesten und Scrollen auf dem Canvas */
+            touch-action: none; 
+        }
+
+        #info {
+            margin-top: 15px;
+            font-size: 1.1rem;
+            color: #aaa;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="info">Tippen am iPhone/Tablet | Leertaste am Laptop</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Spiel-Konstanten und Variablen
+    const GRAVITY = 0.25;
+    const JUMP = -5.5;
+    const PIPE_SPEED = 2;
+    const PIPE_SPAWN_RATE = 100;
+    const PIPE_GAP = 160; 
+
+    let birdY, birdVelocity, score, gameOver, frameCount;
+    let pipes = [];
+
+    const birdX = 70; 
+    const birdRadius = 15; 
+
+    const DACKEL_BROWN = '#8B4513';
+    const DACKEL_DARK = '#5D2E0A';
+    const DACKEL_NOSE = '#000000';
+
+    function init() {
+        birdY = canvas.height / 2;
+        birdVelocity = 0;
+        score = 0;
+        gameOver = false;
+        frameCount = 0;
+        pipes = [];
+    }
+
+    function spawnPipe() {
+        const minHeight = 50;
+        const maxHeight = canvas.height - PIPE_GAP - minHeight;
+        const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+        pipes.push({
+            x: canvas.width,
+            top: topHeight,
+            bottom: canvas.height - topHeight - PIPE_GAP,
+            width: 70,
+            passed: false
+        });
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function update() {
+        if (gameOver) return;
+
+        frameCount++;
+        birdVelocity += GRAVITY;
+        birdY += birdVelocity;
+
+        if (birdY + birdRadius >= canvas.height || birdY - birdRadius <= 0) {
+            gameOver = true;
+        }
+
+        if (frameCount % PIPE_SPAWN_RATE === 0) {
+            spawnPipe();
+        }
+
+        for (let i = pipes.length - 1; i >= 0; i--) {
+            let p = pipes[i];
+            p.x -= PIPE_SPEED;
+
+            // Kollisionsbox für den langen Dackel
+            const dackelWidth = 45;
+            const dackelHeight = 25;
+            const dackelRect = {
+                x: birdX - dackelWidth/2,
+                y: birdY - dackelHeight/2,
+                w: dackelWidth,
+                h: dackelHeight
+            };
+
+            if (dackelRect.x < p.x + p.width &&
+                dackelRect.x + dackelRect.w > p.x &&
+                (dackelRect.y < p.top || dackelRect.y + dackelRect.h > canvas.height - p.bottom)) {
+                gameOver = true;
+            }
+
+            if (!p.passed && p.x + p.width < birdX) {
+                score++;
+                p.passed = true;
+            }
+
+            if (p.x + p.width < 0) {
+                pipes.splice(i, 1);
+            }
+        }
+    }
+
+    function fillRoundedRect(x, y, width, height, radius, color) {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+    }
+
+    function drawDackel() {
+        ctx.save();
+        ctx.translate(birdX, birdY);
+        
+        let rotation = Math.max(-0.5, Math.min(0.5, birdVelocity * 0.08));
+        ctx.rotate(rotation);
+
+        const bodyW = 40;
+        const bodyH = 18;
+        const headRadius = 10;
+
+        // 1. Schwanz
+        ctx.beginPath();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = DACKEL_BROWN;
+        ctx.moveTo(-bodyW/2, 0);
+        ctx.quadraticCurveTo(-bodyW/2 - 10, -10, -bodyW/2 - 5, -15);
+        ctx.stroke();
+
+        // 2. Körper
+        fillRoundedRect(-bodyW/2, -bodyH/2, bodyW, bodyH, 8, DACKEL_BROWN);
+
+        // 3. Kopf
+        ctx.beginPath();
+        ctx.arc(bodyW/2 - 2, -2, headRadius, 0, Math.PI * 2);
+        ctx.fillStyle = DACKEL_BROWN;
+        ctx.fill();
+
+        // 4. Ohr
+        fillRoundedRect(bodyW/2 - 8, -5, 6, 15, 3, DACKEL_DARK);
+
+        // 5. Auge
+        ctx.beginPath();
+        ctx.arc(bodyW/2 + 2, -4, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#000';
+        ctx.fill();
+
+        // 6. Nase
+        ctx.beginPath();
+        ctx.arc(bodyW/2 + headRadius - 1, 0, 3, 0, Math.PI * 2);
+        ctx.fillStyle = DACKEL_BROWN;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(bodyW/2 + headRadius + 1, 0, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = DACKEL_NOSE;
+        ctx.fill();
+        
+        // Beine
+        fillRoundedRect(-bodyW/2 + 5, bodyH/2 - 2, 4, 8, 2, DACKEL_BROWN);
+        fillRoundedRect(bodyW/2 - 10, bodyH/2 - 2, 4, 8, 2, DACKEL_BROWN);
+
+        ctx.restore();
+    }
+
+    function draw() {
+        ctx.fillStyle = '#70c5ce';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#73bf2e';
+        pipes.forEach(p => {
+            ctx.fillStyle = '#73bf2e';
+            ctx.fillRect(p.x, 0, p.width, p.top);
+            ctx.fillRect(p.x, canvas.height - p.bottom, p.width, p.bottom);
+            
+            ctx.fillStyle = '#538221'; 
+            ctx.fillRect(p.x, p.top - 10, p.width, 10);
+            ctx.fillRect(p.x, canvas.height - p.bottom, p.width, 10);
+        });
+
+        drawDackel();
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 35px sans-serif';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(score, canvas.width / 2 - 10, 60);
+        ctx.shadowBlur = 0;
+
+        if (gameOver) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 30px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText("DACKEL ABGESTÜRZT", canvas.width / 2, canvas.height / 2 - 20);
+            ctx.font = '18px sans-serif';
+            ctx.fillText("Tippen oder Leertaste zum Neustart", canvas.width / 2, canvas.height / 2 + 20);
+            ctx.textAlign = 'start';
+        }
+    }
+
+    // Zentrale Steuerungsfunktion für Touch, Klick und Tastatur
+    function handleInput(e) {
+        // Verhindert das Standardverhalten (z.B. Scrollen bei Leertaste oder Zoom bei iOS Touch)
+        if (e.type === 'touchstart') {
+            e.preventDefault();
+        }
+        
+        if (e.type === 'keydown') {
+            if (e.key !== ' ' && e.code !== 'Space') return; // Nur die Leertaste durchlassen
+            e.preventDefault(); // Verhindert, dass die Leertaste das Browserfenster nach unten scrollt
+        }
+
+        if (gameOver) {
+            init();
+        } else {
+            birdVelocity = JUMP;
+        }
+    }
+
+    // Event-Listener für das iPhone / Tablet (Touch)
+    canvas.addEventListener('touchstart', handleInput, { passive: false });
+    
+    // Event-Listener für Mausklicks am Laptop
+    canvas.addEventListener('mousedown', handleInput);
+
+    // Event-Listener für die Leertaste am Laptop
+    window.addEventListener('keydown', handleInput);
+
+    init();
+    gameLoop();
+</script>
+
+</body>
+</html>
